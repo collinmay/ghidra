@@ -211,6 +211,22 @@ List::const_iterator SymbolEntry::restoreXml(List::const_iterator iter,const Add
   return iter;
 }
 
+string Symbol::getFullName(void) const
+
+{
+	if(category == -1) {
+		string fname = scope->getFullName();
+		if (!fname.empty()) {
+			fname = fname + "::" + name;
+		} else {
+			fname = name;
+		}
+		return fname;
+	} else {
+		return name;
+	}
+}
+
 /// Examine the data-type to decide if the Symbol has the special property
 /// called \b size_typelock, which indicates the \e size of the Symbol
 /// is locked, but the data-type is not locked (and can float)

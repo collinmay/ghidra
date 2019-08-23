@@ -187,6 +187,7 @@ public:
   Symbol(Scope *sc) { scope=sc; nameDedup=0; flags=0; dispflags=0; category=-1; }
 
   const string &getName(void) const { return name; }		///< Get the local name of the symbol
+  string getFullName(void) const;		///< Get the fully qualified name of the symbol
   Datatype *getType(void) const { return type; }		///< Get the data-type
   uint4 getId(void) const { return (uint4)(uintp)this; }	///< Get a unique id for the symbol
   uint4 getFlags(void) const { return flags; }			///< Get the boolean properties of the Symbol

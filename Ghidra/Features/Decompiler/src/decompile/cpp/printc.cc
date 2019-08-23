@@ -1628,7 +1628,7 @@ void PrintC::pushSymbol(const Symbol *sym,const Varnode *vn,const PcodeOp *op)
   else
     tokenColor = EmitXml::var_color;
   // FIXME: resolve scopes
-  pushAtom(Atom(sym->getName(),vartoken,tokenColor,op,vn));
+  pushAtom(Atom(sym->getFullName(),vartoken,tokenColor,op,vn));
 }
 
 void PrintC::pushUnnamedLocation(const Address &addr,

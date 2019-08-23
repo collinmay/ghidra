@@ -1456,6 +1456,7 @@ public:
   void setFuncdata(Funcdata *f);				///< Set the Funcdata object associated with the called function
   FuncCallSpecs *clone(PcodeOp *newop) const;			///< Clone \b this given the mirrored p-code CALL
   const string &getName(void) const { return name; }		///< Get the function name associated with the callee
+  string getFullName(void); ///< Get the function's full name
   const Address &getEntryAddress(void) const { return entryaddress; }	///< Get the entry address of the callee
   void setEffectiveExtraPop(int4 epop) { effective_extrapop = epop; }	///< Set the specific \e extrapop associate with \b this call site
   int4 getEffectiveExtraPop(void) const { return effective_extrapop; }	///< Get the specific \e extrapop associate with \b this call site
