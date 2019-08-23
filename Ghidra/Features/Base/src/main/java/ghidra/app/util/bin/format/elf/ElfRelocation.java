@@ -77,27 +77,8 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 	private long r_addend;
 
 	private boolean hasAddend;
-	private boolean is32bit;
+	private ElfHeader elfHeader;
 	private int relocationIndex;
-
-	/**
-	 * GenericFactory construction and initialization method for a ELF relocation entry
-	 * @param reader binary reader positioned at start of relocation entry.
-	 * @param elfHeader ELF header
-	 * @param relocationIndex index of entry in relocation table
-	 * @param withAddend true if if RELA entry with addend, else false
-	 * @return ELF relocation object
-	 * @throws IOException
-	 */
-	static ElfRelocation createElfRelocation(FactoryBundledWithBinaryReader reader,
-			ElfHeader elfHeader, int relocationIndex, boolean withAddend) throws IOException {
-
-		Class<? extends ElfRelocation> elfRelocationClass = getElfRelocationClass(elfHeader);
-		ElfRelocation elfRelocation =
-			(ElfRelocation) reader.getFactory().create(elfRelocationClass);
-		elfRelocation.initElfRelocation(reader, elfHeader, relocationIndex, withAddend);
-		return elfRelocation;
-	}
 
 	/**
 	 * GenericFactory construction and initialization method for a ELF representative 
@@ -114,7 +95,7 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 		Class<? extends ElfRelocation> elfRelocationClass = getElfRelocationClass(elfHeader);
 		ElfRelocation elfRelocation = (ElfRelocation) factory.create(elfRelocationClass);
 		try {
-			elfRelocation.initElfRelocation(null, elfHeader, relocationIndex, withAddend);
+			elfRelocation.initElfRelocation(elfHeader, relocationIndex, withAddend);
 		}
 		catch (IOException e) {
 			// absence of reader should prevent any IOException from occurring
@@ -123,7 +104,7 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 		return elfRelocation;
 	}
 
-	private static Class<? extends ElfRelocation> getElfRelocationClass(ElfHeader elfHeader) {
+	static Class<? extends ElfRelocation> getElfRelocationClass(ElfHeader elfHeader) {
 		Class<? extends ElfRelocation> elfRelocationClass = null;
 		ElfLoadAdapter loadAdapter = elfHeader.getLoadAdapter();
 		if (loadAdapter != null) {
@@ -143,39 +124,23 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 	}
 
 	/**
-	 * Initialize ELF relocation entry using data from the binary reader's current position. 
-	 * @param reader binary reader positioned to the relocation entry data.  If null, 
-	 * a representative instance will be generated with all fields set to 0.
+	 * Initialize ELF relocation entry. 
 	 * @param elfHeader ELF header
 	 * @param relocationTableIndex index of relocation within relocation table
 	 * @param withAddend true if if RELA entry with addend, else false
 	 * @throws IOException
 	 */
-	protected void initElfRelocation(FactoryBundledWithBinaryReader reader, ElfHeader elfHeader,
+	protected void initElfRelocation(ElfHeader elfHeader,
 			int relocationTableIndex, boolean withAddend) throws IOException {
-		this.is32bit = elfHeader.is32Bit();
+		this.elfHeader = elfHeader;
 		this.relocationIndex = relocationTableIndex;
 		this.hasAddend = withAddend;
-		if (reader != null) {
-			readEntryData(reader);
-		}
 	}
-
-	private void readEntryData(FactoryBundledWithBinaryReader reader) throws IOException {
-		if (is32bit) {
-			this.r_offset = reader.readNextInt() & Conv.INT_MASK;
-			this.r_info = reader.readNextInt() & Conv.INT_MASK;
-			if (hasAddend) {
-				r_addend = reader.readNextInt() & Conv.INT_MASK;
-			}
-		}
-		else {
-			this.r_offset = reader.readNextLong();
-			this.r_info = reader.readNextLong();
-			if (hasAddend) {
-				r_addend = reader.readNextLong();
-			}
-		}
+	
+	public void supplyEntryData(long r_offset, long r_info, long r_addend) {
+		this.r_offset = r_offset;
+		this.r_info = r_info;
+		this.r_addend = r_addend;
 	}
 
 	/**
@@ -189,7 +154,14 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 	 * @return true if processing a 32-bit header, else 64-bit
 	 */
 	protected boolean is32Bit() {
-		return is32bit;
+		return elfHeader.is32Bit();
+	}
+	
+	/**
+	 * @return ELF header
+	 */
+	protected ElfHeader getElfHeader() {
+		return elfHeader;
 	}
 
 	/**
@@ -228,7 +200,7 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 	 * @return the symbol index
 	 */
 	public int getSymbolIndex() {
-		return (int) (is32bit ? (r_info >> 8) : (r_info >> 32));
+		return (int) (is32Bit() ? (r_info >> 8) : (r_info >> 32));
 	}
 
 	/**
@@ -237,7 +209,7 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 	 * @return type of relocation to apply
 	 */
 	public int getType() {
-		return (int) (is32bit ? (r_info & Conv.BYTE_MASK) : (r_info & Conv.INT_MASK));
+		return (int) (is32Bit() ? (r_info & Conv.BYTE_MASK) : (r_info & Conv.INT_MASK));
 	}
 
 	/**
@@ -268,12 +240,12 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 
 	@Override
 	public DataType toDataType() {
-		String dtName = is32bit ? "Elf32_Rel" : "Elf64_Rel";
+		String dtName = is32Bit() ? "Elf32_Rel" : "Elf64_Rel";
 		if (hasAddend) {
 			dtName += "a";
 		}
 		Structure struct = new StructureDataType(new CategoryPath("/ELF"), dtName, 0);
-		DataType fieldDt = is32bit ? DWORD : QWORD;
+		DataType fieldDt = is32Bit() ? DWORD : QWORD;
 		struct.add(fieldDt, "r_offset", R_OFFSET_COMMENT);
 		struct.add(fieldDt, "r_info", R_INFO_COMMENT);
 		if (hasAddend) {
@@ -288,7 +260,7 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 	@Override
 	public byte[] toBytes(DataConverter dc) {
 		byte[] bytes = new byte[sizeof()];
-		if (is32bit) {
+		if (is32Bit()) {
 			dc.putInt(bytes, 0, (int) r_offset);
 			dc.putInt(bytes, 4, (int) r_info);
 		}
@@ -311,8 +283,8 @@ public class ElfRelocation implements ByteArrayConverter, StructConverter {
 
 	protected int sizeof() {
 		if (hasAddend) {
-			return is32bit ? 12 : 24;
+			return is32Bit() ? 12 : 24;
 		}
-		return is32bit ? 8 : 16;
+		return is32Bit() ? 8 : 16;
 	}
 }

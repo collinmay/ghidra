@@ -47,6 +47,8 @@ public class ElfRelocationTable implements ElfFileSection, ByteArrayConverter {
 
 	private ElfRelocation[] relocs;
 
+	private boolean shouldMarkup;
+
 	/**
 	 * Create an Elf Relocation Table
 	 * @param reader
@@ -64,12 +66,12 @@ public class ElfRelocationTable implements ElfFileSection, ByteArrayConverter {
 	 */
 	static ElfRelocationTable createElfRelocationTable(FactoryBundledWithBinaryReader reader,
 			ElfHeader header, ElfSectionHeader relocTableSection, long fileOffset, long addrOffset,
-			long length, long entrySize, boolean addendTypeReloc, ElfSymbolTable symbolTable,
-			ElfSectionHeader sectionToBeRelocated) throws IOException {
+			long length, long entrySize, ElfSymbolTable symbolTable,
+			ElfSectionHeader sectionToBeRelocated, ElfRelocationReader relReader) throws IOException {
 		ElfRelocationTable elfRelocationTable =
 			(ElfRelocationTable) reader.getFactory().create(ElfRelocationTable.class);
 		elfRelocationTable.initElfRelocationTable(reader, header, relocTableSection, fileOffset,
-			addrOffset, length, entrySize, addendTypeReloc, symbolTable, sectionToBeRelocated);
+			addrOffset, length, entrySize, symbolTable, sectionToBeRelocated, relReader);
 		return elfRelocationTable;
 	}
 
@@ -81,15 +83,15 @@ public class ElfRelocationTable implements ElfFileSection, ByteArrayConverter {
 
 	private void initElfRelocationTable(FactoryBundledWithBinaryReader reader, ElfHeader header,
 			ElfSectionHeader relocTableSection, long fileOffset, long addrOffset, long length,
-			long entrySize, boolean addendTypeReloc, ElfSymbolTable symbolTable,
-			ElfSectionHeader sectionToBeRelocated) throws IOException {
+			long entrySize, ElfSymbolTable symbolTable,
+			ElfSectionHeader sectionToBeRelocated, ElfRelocationReader relReader) throws IOException {
 
 		this.relocTableSection = relocTableSection;
 		this.fileOffset = fileOffset;
 		this.addrOffset = addrOffset;
 		this.length = length;
 		this.entrySize = entrySize;
-		this.addendTypeReloc = addendTypeReloc;
+		this.addendTypeReloc = relReader.hasAddend();
 		this.elfHeader = header;
 		this.factory = reader.getFactory();
 
@@ -97,20 +99,20 @@ public class ElfRelocationTable implements ElfFileSection, ByteArrayConverter {
 		this.symbolTable = symbolTable;
 
 		long ptr = reader.getPointerIndex();
-		reader.setPointerIndex(fileOffset);
 
 		List<ElfRelocation> relocList = new ArrayList<ElfRelocation>();
 
-		int nRelocs = (int) (length / entrySize);
-		for (int relocationIndex = 0; relocationIndex < nRelocs; ++relocationIndex) {
-			relocList.add(ElfRelocation.createElfRelocation(reader, header, relocationIndex,
-				addendTypeReloc));
+		relReader.begin(reader, fileOffset, length);
+		for (int relocationIndex = 0; relReader.hasMoreRelocations(reader); ++relocationIndex) {
+			relocList.add(relReader.createElfRelocation(reader, header, relocationIndex));
 		}
 
 		reader.setPointerIndex(ptr);
 
 		relocs = new ElfRelocation[relocList.size()];
 		relocList.toArray(relocs);
+		
+		shouldMarkup = relReader.shouldMarkup();
 	}
 
 	/**
@@ -203,6 +205,10 @@ public class ElfRelocationTable implements ElfFileSection, ByteArrayConverter {
 			ElfRelocation.createElfRelocation(factory, elfHeader, -1, addendTypeReloc);
 		DataType relocEntryDataType = relocationRepresentative.toDataType();
 		return new ArrayDataType(relocEntryDataType, (int) (length / entrySize), (int) entrySize);
+	}
+
+	public boolean shouldMarkup() {
+		return shouldMarkup;
 	}
 
 }

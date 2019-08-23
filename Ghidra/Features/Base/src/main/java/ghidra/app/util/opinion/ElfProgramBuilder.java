@@ -684,7 +684,7 @@ class ElfProgramBuilder extends MemorySectionResolver implements ElfLoadHelper {
 				}
 			}
 
-			if (relocTableAddr != null) {
+			if (relocTableAddr != null && relocationTable.shouldMarkup()) {
 				markupRelocationTable(relocTableAddr, relocationTable, monitor);
 			}
 

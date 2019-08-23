@@ -294,6 +294,24 @@ public class BinaryReader {
 		currentIndex += SIZEOF_LONG;
 		return l;
 	}
+	
+	public long readNextSLEB128() throws IOException {
+		long v = 0;
+		byte b = 0;
+		int shift = 0;
+		
+		do {
+			b = readNextByte();
+			v|= (long) (b & 127) << shift;
+			shift+= 7;
+		} while((b & 128) != 0);
+		
+		if(shift < 64 && (b & 64) != 0) {
+			v|= -(1 << shift);
+		}
+		
+		return v;
+	}
 
 	/**
 	 * Reads the Ascii string at the current index and then increments the current

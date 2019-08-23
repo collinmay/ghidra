@@ -42,15 +42,15 @@ public class MIPS_Elf64Relocation extends ElfRelocation {
 	}
 
 	@Override
-	protected void initElfRelocation(FactoryBundledWithBinaryReader reader, ElfHeader elfHeader,
-			int relocationTableIndex, boolean withAddend) throws IOException {
-		super.initElfRelocation(reader, elfHeader, relocationTableIndex, withAddend);
+	public void supplyEntryData(long r_offset, long r_info, long r_addend) {
+		super.supplyEntryData(r_offset, r_info, r_addend);
+		
 		long info = getRelocationInfo();
-		if (elfHeader.isLittleEndian()) {
+		if (getElfHeader().isLittleEndian()) {
 			// revert to big-endian byte order
 			info = DataConverter.swapBytes(info, 8);
 		}
-		DataConverter converter = elfHeader.isLittleEndian() ? LittleEndianDataConverter.INSTANCE
+		DataConverter converter = getElfHeader().isLittleEndian() ? LittleEndianDataConverter.INSTANCE
 				: BigEndianDataConverter.INSTANCE;
 		byte[] rSymBytes = BigEndianDataConverter.INSTANCE.getBytes((int) (info >>> 32));
 		symbolIndex = converter.getInt(rSymBytes);

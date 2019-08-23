@@ -52,6 +52,8 @@ public class ElfHeader implements StructConverter, Writeable {
 	private byte e_ident_class; //file class
 	private byte e_ident_data; //data encoding
 	private byte e_ident_version; //file version
+	private byte e_ident_osabi; //target operating system
+	private byte e_ident_abiversion; //target abi version
 	private byte[] e_ident_pad; //padding
 	private short e_type; //object file type
 	private short e_machine; //target architecture
@@ -136,7 +138,9 @@ public class ElfHeader implements StructConverter, Writeable {
 			e_ident_class = reader.readNextByte();
 			e_ident_data = reader.readNextByte();
 			e_ident_version = reader.readNextByte();
-			e_ident_pad = reader.readNextByteArray(9);
+			e_ident_osabi = reader.readNextByte();
+			e_ident_abiversion = reader.readNextByte();
+			e_ident_pad = reader.readNextByteArray(7);
 			e_type = reader.readNextShort();
 			e_machine = reader.readNextShort();
 			e_version = reader.readNextInt();
@@ -335,11 +339,17 @@ public class ElfHeader implements StructConverter, Writeable {
 		// GOT/PLT relocations are applied late.
 
 		parseDynamicRelocTable(relocationTableList, ElfDynamicType.DT_REL, ElfDynamicType.DT_RELENT,
-			ElfDynamicType.DT_RELSZ, false);
+			ElfDynamicType.DT_RELSZ, new ElfRelRelocationReader());
 
 		parseDynamicRelocTable(relocationTableList, ElfDynamicType.DT_RELA,
-			ElfDynamicType.DT_RELAENT, ElfDynamicType.DT_RELASZ, true);
-
+			ElfDynamicType.DT_RELAENT, ElfDynamicType.DT_RELASZ,
+			new ElfRelaRelocationReader());
+		
+		if(this.e_ident_osabi == 0 && this.e_ident_abiversion <= 1) {
+			parseAPS2RelocTable(relocationTableList, ElfDynamicType.DT_ANDROID_REL, ElfDynamicType.DT_ANDROID_RELSZ, false);
+			parseAPS2RelocTable(relocationTableList, ElfDynamicType.DT_ANDROID_RELA, ElfDynamicType.DT_ANDROID_RELASZ, true);
+		}
+		
 		parseJMPRelocTable(relocationTableList);
 
 		// In general the above dynamic relocation tables should cover most cases, we will
@@ -377,7 +387,9 @@ public class ElfHeader implements StructConverter, Writeable {
 					ElfSectionHeaderConstants.SHT_DYNSYM, ElfSectionHeaderConstants.SHT_SYMTAB);
 				ElfSymbolTable symbolTable = getSymbolTable(symbolTableSection);
 
-				boolean addendTypeReloc = (sectionHeaderType == ElfSectionHeaderConstants.SHT_RELA);
+				ElfRelocationReader relReader = sectionHeaderType == ElfSectionHeaderConstants.SHT_RELA ?
+						new ElfRelaRelocationReader() :
+							new ElfRelRelocationReader();
 
 				Msg.debug(this,
 					"Elf relocation table section " + section.getNameAsString() +
@@ -390,7 +402,8 @@ public class ElfHeader implements StructConverter, Writeable {
 
 				relocationTableList.add(ElfRelocationTable.createElfRelocationTable(reader, this,
 					section, section.getOffset(), section.getAddress(), section.getSize(),
-					section.getEntrySize(), addendTypeReloc, symbolTable, sectionToBeRelocated));
+					section.getEntrySize(),
+					symbolTable, sectionToBeRelocated, relReader));
 			}
 		}
 		catch (NotFoundException e) {
@@ -417,13 +430,14 @@ public class ElfHeader implements StructConverter, Writeable {
 
 		parseDynamicRelocTable(relocationTableList, ElfDynamicType.DT_JMPREL,
 			addendTypeReloc ? ElfDynamicType.DT_RELAENT : ElfDynamicType.DT_RELENT,
-			ElfDynamicType.DT_PLTRELSZ, addendTypeReloc);
+			ElfDynamicType.DT_PLTRELSZ, addendTypeReloc ? new ElfRelaRelocationReader() :
+				new ElfRelRelocationReader());
 
 	}
 
 	private void parseDynamicRelocTable(ArrayList<ElfRelocationTable> relocationTableList,
 			ElfDynamicType relocTableAddrType, ElfDynamicType relocEntrySizeType,
-			ElfDynamicType relocTableSizeType, boolean addendTypeReloc) throws IOException {
+			ElfDynamicType relocTableSizeType, ElfRelocationReader relReader) throws IOException {
 
 		if (dynamicTable == null) {
 			return;
@@ -462,12 +476,61 @@ public class ElfHeader implements StructConverter, Writeable {
 			}
 
 			long relocTableOffset = relocTableLoadHeader.getOffset(relocTableAddr);
-			long tableEntrySize = dynamicTable.getDynamicValue(relocEntrySizeType);
+			long tableEntrySize = 0;
+			if(relocEntrySizeType != null) {
+				tableEntrySize = dynamicTable.getDynamicValue(relocEntrySizeType);
+			}
 			long tableSize = dynamicTable.getDynamicValue(relocTableSizeType);
 
 			relocationTableList.add(ElfRelocationTable.createElfRelocationTable(reader, this, null,
-				relocTableOffset, relocTableAddr, tableSize, tableEntrySize, addendTypeReloc,
-				dynamicSymbolTable, null));
+				relocTableOffset, relocTableAddr, tableSize, tableEntrySize,
+				dynamicSymbolTable, null, relReader));
+
+		}
+		catch (NotFoundException e) {
+			// ignore - skip (required dynamic table value is missing)
+		}
+	}
+	
+	private void parseAPS2RelocTable(ArrayList<ElfRelocationTable> relocationTableList,
+			ElfDynamicType relocTableAddrType,
+			ElfDynamicType relocTableSizeType, boolean addendTypeReloc) throws IOException {
+
+		if (dynamicTable == null) {
+			return;
+		}
+
+		try {
+
+			// NOTE: Dynamic and Relocation tables are loaded into memory, however,
+			// we construct them without loading so we must map memory addresses 
+			// back to file offsets.
+
+			long relocTableAddr =
+				adjustAddressForPrelink(dynamicTable.getDynamicValue(relocTableAddrType));
+
+			ElfProgramHeader relocTableLoadHeader = getProgramLoadHeaderContaining(relocTableAddr);
+			if (relocTableLoadHeader == null) {
+				Msg.warn(this, "Failed to locate " + relocTableAddrType.name + " in memory at 0x" +
+					Long.toHexString(relocTableAddr));
+				return;
+			}
+			if (relocTableLoadHeader.getOffset() < 0) {
+				return;
+			}
+
+			if (dynamicSymbolTable == null) {
+				Msg.warn(this, "Failed to process " + relocTableAddrType.name +
+					", missing dynamic symbol table");
+				return;
+			}
+
+			long relocTableOffset = relocTableLoadHeader.getOffset(relocTableAddr);
+			long tableSize = dynamicTable.getDynamicValue(relocTableSizeType);
+
+			relocationTableList.add(ElfRelocationTable.createElfRelocationTable(reader, this, null,
+				relocTableOffset, 0, tableSize, 0,
+				dynamicSymbolTable, null, new ElfAPS2RelocationReader(addendTypeReloc)));
 
 		}
 		catch (NotFoundException e) {
