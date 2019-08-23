@@ -182,7 +182,7 @@ class VarnodeLocationCellEditor extends AbstractCellEditor implements TableCellE
 			}
 		}
 
-		Collections.sort(validItems, registerWrapperComparator);
+		//Collections.sort(validItems, registerWrapperComparator);
 		Register[] registers = validItems.toArray(new Register[validItems.size()]);
 
 		combo = new GhidraComboBox<>(registers);
