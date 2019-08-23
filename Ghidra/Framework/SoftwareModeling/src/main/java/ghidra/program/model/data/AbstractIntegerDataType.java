@@ -45,6 +45,8 @@ public abstract class AbstractIntegerDataType extends BuiltIn implements ArraySt
 	static final String C_UNSIGNED_LONG = "unsigned long";
 	static final String C_SIGNED_LONGLONG = "long long";
 	static final String C_UNSIGNED_LONGLONG = "unsigned long long";
+	static final String C_SIZE_T = "size_t";
+	static final String C_POINTER_DIFFERENCE_T = "ptrdiff_t";
 
 	protected static final PaddingSettingsDefinition PADDING = PaddingSettingsDefinition.DEF;
 	protected static final EndianSettingsDefinition ENDIAN = EndianSettingsDefinition.DEF;
