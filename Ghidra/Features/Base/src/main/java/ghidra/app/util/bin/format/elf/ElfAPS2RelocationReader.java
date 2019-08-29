@@ -71,7 +71,7 @@ public class ElfAPS2RelocationReader extends ElfRelocationReader {
 			}
 		}
 		
-		//System.out.printf("APS2: read reloc [0x%016x, 0x%016x, 0x%016x]\n", r_offset, r_info, r_addend);
+		System.out.printf("APS2: read reloc [0x%016x, 0x%016x, 0x%016x]\n", r_offset, r_info, r_addend);
 		
 		elfRelocation.supplyEntryData(r_offset, r_info, r_addend);
 		

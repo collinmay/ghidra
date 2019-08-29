@@ -106,6 +106,7 @@ public class ElfRelocationTable implements ElfFileSection, ByteArrayConverter {
 		for (int relocationIndex = 0; relReader.hasMoreRelocations(reader); ++relocationIndex) {
 			relocList.add(relReader.createElfRelocation(reader, header, relocationIndex));
 		}
+		System.out.printf("read %d relocs\n", relocList.size());
 
 		reader.setPointerIndex(ptr);
 

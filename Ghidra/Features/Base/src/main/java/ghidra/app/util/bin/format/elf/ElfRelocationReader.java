@@ -60,7 +60,7 @@ public abstract class ElfRelocationReader {
 		if(!hasBegun) {
 			throw new RuntimeException("relocation reader not begun");
 		}
-		return reader.getPointerIndex() >= fileOffset + tableSize;
+		return reader.getPointerIndex() < fileOffset + tableSize;
 	}
 
 	public boolean shouldMarkup() {
