@@ -214,7 +214,7 @@ List::const_iterator SymbolEntry::restoreXml(List::const_iterator iter,const Add
 string Symbol::getFullName(void) const
 
 {
-	if(category == -1) {
+	if(scope->isGlobal()) {
 		string fname = scope->getFullName();
 		if (!fname.empty()) {
 			fname = fname + "::" + name;
