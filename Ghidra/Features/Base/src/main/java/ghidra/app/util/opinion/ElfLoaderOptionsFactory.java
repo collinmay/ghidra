@@ -40,7 +40,7 @@ public class ElfLoaderOptionsFactory {
 
 	public static final String IMAGE_BASE_OPTION_NAME = "Image Base";
 	public static final long IMAGE_BASE_DEFAULT = 0x00010000;
-	public static final long IMAGE64_BASE_DEFAULT = 0x00100000L;
+	public static final long IMAGE64_BASE_DEFAULT = 0x7100000000L;
 
 	public static final String INCLUDE_OTHER_BLOCKS = "Import Non-Loaded Data";// as OTHER overlay blocks
 	static final boolean INCLUDE_OTHER_BLOCKS_DEFAULT = true;
@@ -63,7 +63,7 @@ public class ElfLoaderOptionsFactory {
 		ElfHeader elf = ElfHeader.createElfHeader(RethrowContinuesFactory.INSTANCE, provider);
 
 		long imageBase = elf.findImageBase();
-		if (imageBase == 0 && (elf.isRelocatable() || elf.isSharedObject())) {
+		if (/*imageBase == 0 && */(elf.isRelocatable() || elf.isSharedObject())) {
 			imageBase = elf.is64Bit() ? IMAGE64_BASE_DEFAULT : IMAGE_BASE_DEFAULT;
 		}
 		AddressSpace defaultSpace =
